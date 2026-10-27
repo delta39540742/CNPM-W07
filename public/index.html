@@ -3,23 +3,29 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Task Manager V2</title>
+  <title>Task Manager V3</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0 }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f5f5f7; color: #1d1d1f; min-height: 100vh; padding: 20px; }
-    .container { max-width: 600px; margin: 0 auto; }
+    .container { max-width: 900px; margin: 0 auto; }
     h1 { margin-bottom: 20px; font-size: 24px; color: #1d1d1f; }
-    .input-group { background: white; border-radius: 12px; padding: 15px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-    .input-group input { flex: 1; padding: 8px 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 16px; }
-    .input-group button { padding: 0 20px; background: #007AFF; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; margin-left: 8px; }
-    .input-group button:hover { background: #0051cc; }
-    .input-group button:disabled { background: #8e8e93; cursor: not-allowed; }
-    .task-list { background: white; border-radius: 12px; padding: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); min-height: 200px; }
+    
+    /* Kanban board */
+    .kanban-board { display: flex; gap: 20px; margin-bottom: 20px; }
+    .kanban-column { flex: 1; background: white; border-radius: 12xpadding: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); min-height: 300px; }
+    .kanban-column.to-do .column-title { background: #ffc964; color: #1d1d1f; border-radius: 8px 8px 0 0; padding: 10px 15px; margin: -15px -15px 15px; }
+    .kanban-column.done .column-title { background: #68d391; color: white; border-radius: 8px 8px 0 0; padding: 10px 15px; margin: -15px -15px 15px; }
+    .column-title { font-size: 16px; font-weight: 600; }
+    
+    .todo-column .column-title { background: #ffc964; color: #1d1d1f; }
+    .done-column .column-title { background: #68d391; color: white; }
+    
+    .task-list { min-height: 200px; }
     .task-item { display: flex; align-items: center; padding: 10px 0; border-bottom: 1px solid #eee; }
     .task-item:last-child { border-bottom: none; }
     .task-item.completed .task-name { text-decoration: line-through; color: #86868b; }
     .task-item.completed .task-name span { opacity: 0.5; }
-    .task-checkbox { width: 20px; height: 20px; border: 2px solid #007AFF; border-radius: 6px; margin-right: 12px; flex-shrink: 0; cursor: pointer; position: relative; }
+    .task-checkbox { width: 20px; height: 20px; border: 2px solid #007AFF; border-radius: 6px; margin-right: 12px; flex-shrink: 0; position: relative; }
     .task-checkbox.checked { background: #007AFF; }
     .task-checkbox.checked::after { content: '✓'; color: white; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 12px; }
     .task-name { flex: 1; font-size: 16px; }
@@ -27,27 +33,37 @@
     .task-item:hover .task-actions { opacity: 1; }
     .task-delete { background: transparent; border: 1px solid #dc2626; color: #dc2626; padding: 4px 8px; border-radius: 6px; font-size: 12px; cursor: pointer; }
     .task-delete:hover { background: #dc2626; color: white; }
+    
+    /* Status message */
     #statusMsg { padding: 8px; margin: 10px 0; border-radius: 6; display: none; }
     #statusMsg.success { background: #d1e7dd; color: #0f5132; }
     #statusMsg.error { background: #f8d7da; color: #842029; }
-    #pollingStatus { margin-top: 8px; font-size: 12px; color: #86868b; }
-    #pollingStatus.running { color: #059669; }
-    #pollingStatus.stopped { color: #dc2626; }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>Task Manager V2</h1>
+    <h1>Task Manager V3</h1>
     
     <div class="input-group">
       <input type="text" id="taskInput" placeholder="Tên công việc...">
       <button id="addBtn" disabled>Thêm task</button>
     </div>
-
-    <div class="task-list" id="taskList">
-      <!-- Tasks will be injected here -->
+    
+    <div class="kanban-board">
+      <div class="kanban-column to-do" id="toDoColumn">
+        <div class="column-title">Chưa hoàn thành</div>
+        <div class="task-list" id="toDoList">
+          <!-- Tasks will be injected here -->
+        </div>
+      </div>
+      <div class="kanban-column done" id="doneColumn">
+        <div class="column-title">Hoàn thành</div>
+        <div class="task-list" id="doneList">
+          <!-- Tasks will be injected here -->
+        </div>
+      </div>
     </div>
-
+    
     <div id="statusMsg" class="success"></div>
     
     <div id="pollingStatus" class="pollingStatus">Đang theo dõi cập nhật...</div>
@@ -58,11 +74,12 @@
     let pollingInterval = null;
     let isPollingActive = false;
 
-    const taskListEl = document.getElementById('taskList');
+    const taskListEl = document.getElementById('taskList'); // legacy, not used in kanban
+    const toDoListEl = document.getElementById('toDoList');
+    const doneListEl = document.getElementById('doneList');
     const taskInput = document.getElementById('taskInput');
     const addBtn = document.getElementById('addBtn');
     const statusMsg = document.getElementById('statusMsg');
-    const pollingStatusEl = document.getElementById('pollingStatus');
 
     function showStatus(message, isError = false) {
       statusMsg.textContent = message;
@@ -74,27 +91,50 @@
       }, 3000);
     }
 
-    function renderTasks(tasks) {
-      if (!tasks || tasks.length === 0) {
-        taskListEl.innerHTML = '<p style="padding: 20px; color: #86868b;">Chưa có task nào</p>';
-        return;
-      }
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
 
-      taskListEl.innerHTML = tasks.map(task => `
-        <div class="task-item ${task.completed ? 'completed' : ''}" data-id="${task.id}">
-          <div class="task-checkbox ${task.completed ? 'checked' : ''}" onclick="toggleTask('${task.id}')"></div>
+    function renderTaskItem(task) {
+      const isCompleted = task.completed === true || task.completed === 1 || task.completed === '1';
+      const rowClass = isCompleted ? 'completed' : '';
+      const checkboxClass = isCompleted ? 'checked' : '';
+      
+      const taskHtml = `
+        <div class="task-item ${rowClass}" data-id="${task.id}">
+          <div class="task-checkbox ${checkboxClass}" onclick="toggleTask('${task.id}')"></div>
           <span class="task-name">${escapeHtml(task.name)}</span>
           <div class="task-actions">
             <button class="task-delete" onclick="deleteTask('${task.id}')">Xóa</button>
           </div>
         </div>
-      `).join('');
+      `;
+      
+      // Place in the appropriate column based on completed status
+      if (isCompleted) {
+        doneListEl.innerHTML += taskHtml;
+      } else {
+        toDoListEl.innerHTML += taskHtml;
+      }
     }
 
-    function escapeHtml(text) {
-      const div = document.createElement('div');
-      div.textContent = text;
-      return div.innerHTML;
+    function renderTasks(tasks) {
+      // Clear both columns
+      toDoListEl.innerHTML = '';
+      doneListEl.innerHTML = '';
+      
+      if (!tasks || tasks.length === 0) {
+        // Show placeholder in both columns if you want, or just leave empty
+        // For now, show a message in the to-do column
+        toDoListEl.innerHTML = '<p style="padding: 20px; color: #86868b;">Chưa có task nào</p>';
+        return;
+      }
+
+      tasks.forEach(task => {
+        renderTaskItem(task);
+      });
     }
 
     async function loadTasks(fromPolling = false) {
@@ -180,9 +220,12 @@
       }, 5000); // Poll every 5 seconds
       
       isPollingActive = true;
-      pollingStatusEl.textContent = 'Đang theo dõi cập nhật...';
-      pollingStatusEl.className = 'pollingStatus running';
-      pollingStatusEl.style.display = 'block';
+      const pollingStatusEl = document.getElementById('pollingStatus');
+      if (pollingStatusEl) {
+        pollingStatusEl.textContent = 'Đang theo dõi cập nhật...';
+        pollingStatusEl.className = 'pollingStatus running';
+        pollingStatusEl.style.display = 'block';
+      }
     }
 
     function stopPolling() {
@@ -191,8 +234,11 @@
         pollingInterval = null;
       }
       isPollingActive = false;
-      pollingStatusEl.className = 'pollingStatus stopped';
-      pollingStatusEl.textContent = 'Đã dừng theo dõi';
+      const pollingStatusEl = document.getElementById('pollingStatus');
+      if (pollingStatusEl) {
+        pollingStatusEl.className = 'pollingStatus stopped';
+        pollingStatusEl.textContent = 'Đã dừng theo dõi';
+      }
     }
 
     // Stop polling when page is hidden/unloaded
